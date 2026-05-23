@@ -126,12 +126,15 @@ class Scrcpy:
     def scrcpy_stop(self):
         print("Stopping Scrcpy")
         self.stop = True
-        self.video_socket.shutdown(socket.SHUT_RDWR)
-        self.control_socket.shutdown(socket.SHUT_RDWR)
-        self.video_socket.shutdown(socket.SHUT_RDWR)
-        self.audio_socket.close()
-        self.control_socket.close()
-        self.video_socket.close()
+        for sock in (self.video_socket, self.audio_socket, self.control_socket):
+            try:
+                sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            try:
+                sock.close()
+            except OSError:
+                pass
 
         self.video_thread.join()
         self.audio_thread.join()
@@ -141,4 +144,7 @@ class Scrcpy:
         print("Scrcpy stopped")
 
     def scrcpy_send_control(self, data):
-        self.control_socket.send(data)
+        try:
+            self.control_socket.send(data)
+        except (BrokenPipeError, OSError):
+            pass

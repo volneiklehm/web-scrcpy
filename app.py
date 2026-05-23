@@ -19,12 +19,11 @@ socketio = SocketIO(app, async_mode=None)
 def index():
     return render_template('index.html')
 
-def video_send_task():
-    global client_sid
-    while client_sid != None:
+def video_send_task(sid):
+    while client_sid == sid:
         try:
             message = message_queue.get(timeout=0.01)
-            socketio.emit('video_data', message, to=client_sid)
+            socketio.emit('video_data', message, to=sid)
         except queue.Empty:
             pass
         except Exception as e:
@@ -33,12 +32,11 @@ def video_send_task():
             socketio.sleep(0.001)
     print(f"video_send_task stopped")
 
-def audio_send_task():
-    global client_sid
-    while client_sid != None:
+def audio_send_task(sid):
+    while client_sid == sid:
         try:
             message = audio_message_queue.get(timeout=0.01)
-            socketio.emit('audio_data', message, to=client_sid)
+            socketio.emit('audio_data', message, to=sid)
         except queue.Empty:
             pass
         except Exception as e:
@@ -65,23 +63,32 @@ def handle_connect():
         client_sid = request.sid
         scpy_ctx = Scrcpy()
         scpy_ctx.scrcpy_start(send_video_data, send_audio_data, video_bit_rate, new_display)
-        socketio.start_background_task(video_send_task)
-        socketio.start_background_task(audio_send_task)
+        socketio.start_background_task(video_send_task, client_sid)
+        socketio.start_background_task(audio_send_task, client_sid)
         print(f'connectioned, client  {scpy_ctx}')
 
 @socketio.on('disconnect')
-def handle_disconnect():
+def handle_disconnect(reason=None):
     global scpy_ctx, client_sid
     client_sid = None
     print('Client disconnected', {scpy_ctx})
-    scpy_ctx.scrcpy_stop()
-    scpy_ctx = None
-    print('scrcpy stopped, client {scpy_ctx}')
+    try:
+        scpy_ctx.scrcpy_stop()
+    except Exception as e:
+        print(f'scrcpy_stop error: {e}')
+    finally:
+        scpy_ctx = None
+        with message_queue.mutex:
+            message_queue.queue.clear()
+        with audio_message_queue.mutex:
+            audio_message_queue.queue.clear()
+    print('scrcpy stopped')
 
 @socketio.on('control_data')
 def handle_control_data(data):
     global scpy_ctx
-    scpy_ctx.scrcpy_send_control(data)
+    if scpy_ctx is not None:
+        scpy_ctx.scrcpy_send_control(data)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Web server for scrcpy')
@@ -91,4 +98,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
     video_bit_rate = args.video_bit_rate
     new_display = args.new_display
-    socketio.run(app, host='0.0.0.0', port=5000)
+    socketio.run(app, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
