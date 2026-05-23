@@ -3,6 +3,7 @@ class VideoParser {
         this.debug = debug
         this.buffer = new Uint8Array(0);
         this.name = null;
+        this.codec = null; // v4.0: 4-byte codec ID sent before session meta
         this.width = null;
         this.height = null;
         this.hasKeyFrame = null;
@@ -36,9 +37,18 @@ class VideoParser {
                 }
                 startIndex = 64;
             }
+        } else if (this.codec == null) {
+            // v4.0: Streamer.writeVideoHeader() sends a 4-byte codec ID before session meta
+            if (this.buffer.length >= 4) {
+                const codecId = new DataView(this.buffer.buffer).getUint32(0, false);
+                this.codec = codecId;
+                console.log("Codec ID: 0x" + codecId.toString(16));
+                startIndex = 4;
+            }
         } else if (this.width == null) {
+            // v4.0: Streamer.writeSessionMeta() sends flags(4) + width(4) + height(4)
             if (this.buffer.length >= 12) {
-                const id = new DataView(this.buffer.buffer).getInt32(0, false);
+                // flags at offset 0 is PACKET_FLAG_SESSION (0x80000000), not used by client
                 this.width = new DataView(this.buffer.buffer).getInt32(4, false);
                 this.height = new DataView(this.buffer.buffer).getInt32(8, false);
                 console.log("width:" + this.width + " height:" + this.height);

@@ -4,7 +4,7 @@ import socket
 import time
 
 ADB_PATH = "adb"
-SCRCPY_SERVER_PATH = "scrcpy-server"
+SCRCPY_SERVER_PATH = "scrcpy-server-v4.0"
 DEVICE_SERVER_PATH = "/data/local/tmp/scrcpy-server.jar"
 LOCAL_PORT = 5555
 
@@ -36,7 +36,7 @@ class Scrcpy:
         print("Starting scrcpy server in background...")
         cmd = [
             ADB_PATH, "shell",
-            f"CLASSPATH={DEVICE_SERVER_PATH} app_process / com.genymobile.scrcpy.Server 3.1 tunnel_forward=true log_level=VERBOSE video_bit_rate=" + self.video_bit_rate
+            f"CLASSPATH={DEVICE_SERVER_PATH} app_process / com.genymobile.scrcpy.Server 4.0 tunnel_forward=true log_level=VERBOSE video_bit_rate=" + self.video_bit_rate
         ]
         self.android_process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         while not self.stop:
@@ -60,7 +60,7 @@ class Scrcpy:
 
     def receive_audio_data(self):
         print("Receiving audio data...")
-        self.audio_socket.recv(1)
+        # v4.0: dummy byte is only sent on the first (video) socket
         while not self.stop:
             data = self.audio_socket.recv(1024)
             if not data:
@@ -69,7 +69,7 @@ class Scrcpy:
 
     def handle_control_conn(self):
         print("Control connection established (idle)...")
-        self.control_socket.recv(1)
+        # v4.0: dummy byte is only sent on the first (video) socket
         while not self.stop:
             data = self.control_socket.recv(1024)
             if not data:
