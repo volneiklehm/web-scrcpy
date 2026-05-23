@@ -7,6 +7,7 @@ import queue
 scpy_ctx = None
 client_sid = None
 message_queue = queue.Queue()
+audio_message_queue = queue.Queue()
 video_bit_rate = "1024000"
 
 app = Flask(__name__)
@@ -26,13 +27,30 @@ def video_send_task():
         except queue.Empty:
             pass
         except Exception as e:
-            print(f"Error sending data: {e}")
+            print(f"Error sending video data: {e}")
         finally:
             socketio.sleep(0.001)
     print(f"video_send_task stopped")
 
+def audio_send_task():
+    global client_sid
+    while client_sid != None:
+        try:
+            message = audio_message_queue.get(timeout=0.01)
+            socketio.emit('audio_data', message, to=client_sid)
+        except queue.Empty:
+            pass
+        except Exception as e:
+            print(f"Error sending audio data: {e}")
+        finally:
+            socketio.sleep(0.001)
+    print(f"audio_send_task stopped")
+
 def send_video_data(data):
     message_queue.put(data)
+
+def send_audio_data(data):
+    audio_message_queue.put(data)
 
 @socketio.on('connect')
 def handle_connect():
@@ -45,8 +63,9 @@ def handle_connect():
     else:
         client_sid = request.sid
         scpy_ctx = Scrcpy()
-        scpy_ctx.scrcpy_start(send_video_data, video_bit_rate)
+        scpy_ctx.scrcpy_start(send_video_data, send_audio_data, video_bit_rate)
         socketio.start_background_task(video_send_task)
+        socketio.start_background_task(audio_send_task)
         print(f'connectioned, client  {scpy_ctx}')
 
 @socketio.on('disconnect')

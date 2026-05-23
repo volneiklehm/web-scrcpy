@@ -66,6 +66,7 @@
     <script src="/static/js/exp-golomb.js"></script>
     <script src="/static/js/h264-sps-parser.js"></script>
     <script src="/static/js/video_parser.js"></script>
+    <script src="/static/js/audio_parser.js"></script>
 </head>
 
 <body>
@@ -81,9 +82,18 @@
     <div class="video-wrapper">
         <video id="player" autoplay muted webkit-playsinline playsinline x5-playsinline></video>
     </div>
+    <!-- hidden audio element with its own MSE pipeline, independent from video -->
+    <audio id="audio-player" autoplay style="display:none;"></audio>
+    <!-- shown only if browser blocks audio autoplay -->
+    <div id="audio-hint" style="display:none;position:fixed;bottom:12px;right:12px;
+         background:rgba(0,0,0,.6);color:#fff;padding:6px 12px;border-radius:4px;
+         font-family:Arial,sans-serif;font-size:13px;cursor:pointer;z-index:999;">
+        🔇 Clique para ativar o áudio
+    </div>
     <script src="/static/js/jmuxer.min.js"></script>
     <script>
         const videoElement = document.getElementById('player');
+        // Video pipeline — independent from audio, restores original behavior
         const jmuxer = new JMuxer({
             node: 'player',
             mode: 'video',
@@ -113,6 +123,23 @@
             onError: (err) => {
                 document.getElementById('status').textContent = 'MSE Error: ' + err.message;
             }
+        });
+
+        // Audio pipeline — separate <audio> element so video is never blocked by audio state
+        const audioElement = document.getElementById('audio-player');
+        const jmuxerAudio = new JMuxer({
+            node: 'audio-player',
+            mode: 'audio',
+            flushingTime: 0,
+            fps: 60,
+            clearBuffer: true,
+            onError: (err) => { console.error('Audio MSE error:', err); }
+        });
+
+        // Show fallback hint if browser blocks audio autoplay
+        const audioHint = document.getElementById('audio-hint');
+        audioHint.addEventListener('click', () => {
+            audioElement.play().then(() => { audioHint.style.display = 'none'; });
         });
 
         const socket = io({
@@ -200,6 +227,24 @@
         socket.on('video_data', (data) => {
             const newData = new Uint8Array(data);
             parser.appendData(newData);
+        });
+
+        let audioPlayStarted = false;
+        const audioParser = new AudioParser((adtsFrame) => {
+            jmuxerAudio.feed({ audio: adtsFrame });
+            // Trigger play on first frame — by this point the user has connected so
+            // the browser should honour the play() request.
+            if (!audioPlayStarted) {
+                audioPlayStarted = true;
+                audioElement.play().catch(() => {
+                    // Browser blocked autoplay: show clickable hint
+                    audioHint.style.display = 'block';
+                });
+            }
+        });
+
+        socket.on('audio_data', (data) => {
+            audioParser.appendData(new Uint8Array(data));
         });
 
         socket.on('connect', () => {

@@ -36,7 +36,7 @@ class Scrcpy:
         print("Starting scrcpy server in background...")
         cmd = [
             ADB_PATH, "shell",
-            f"CLASSPATH={DEVICE_SERVER_PATH} app_process / com.genymobile.scrcpy.Server 4.0 tunnel_forward=true log_level=VERBOSE video_bit_rate=" + self.video_bit_rate
+            f"CLASSPATH={DEVICE_SERVER_PATH} app_process / com.genymobile.scrcpy.Server 4.0 tunnel_forward=true log_level=VERBOSE video_bit_rate=" + self.video_bit_rate + " audio_codec=aac"
         ]
         self.android_process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         while not self.stop:
@@ -62,9 +62,10 @@ class Scrcpy:
         print("Receiving audio data...")
         # v4.0: dummy byte is only sent on the first (video) socket
         while not self.stop:
-            data = self.audio_socket.recv(1024)
+            data = self.audio_socket.recv(4096)
             if not data:
                 break
+            self.audio_callback(data)
         print("Audio data reception stopped")
 
     def handle_control_conn(self):
@@ -77,9 +78,10 @@ class Scrcpy:
             print("Control Mesg:", data)
         print("Control connection stopped")
 
-    def scrcpy_start(self, video_callback, video_bit_rate):
+    def scrcpy_start(self, video_callback, audio_callback, video_bit_rate):
         self.video_bit_rate = video_bit_rate
         self.video_callback = video_callback
+        self.audio_callback = audio_callback
         self.stop = False
 
         result = subprocess.run([ADB_PATH, "devices"], capture_output=True, text=True)
