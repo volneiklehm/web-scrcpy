@@ -15,6 +15,37 @@ allowing you to control your Android device from a web browser. Web server for s
    - Start running: `python3 app.py`
 4. Open a browser and visit http://localhost:5000, then you can see the control interface of scrcpy.
 
+## Command-line Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--video_bit_rate` | `1024000` | Video bitrate sent to the scrcpy server (bps) |
+| `--new-display` | _(disabled)_ | Create a virtual secondary display on the device |
+
+### `--new-display` — Virtual Display (e.g. Samsung DeX)
+
+Some Android devices (such as those supporting Samsung DeX) allow creating a virtual secondary display independent of the physical screen. This is equivalent to running `scrcpy --new-display=WxH/DPI` from the desktop client.
+
+**Accepted formats:**
+
+```bash
+# Auto size and DPI (device chooses defaults)
+python3 app.py --new-display
+
+# Fixed resolution and DPI
+python3 app.py --new-display=1920x1080/284
+
+# Fixed resolution, system default DPI
+python3 app.py --new-display=1920x1080
+
+# Auto size, fixed DPI only
+python3 app.py --new-display=/284
+```
+
+When this option is used, a new virtual display is created on the device and mirrored in the browser. The physical screen is not affected. To mirror the physical screen (default behaviour), simply omit the option.
+
+> **Note:** Virtual display support depends on the device. It works on devices that support `android.hardware.type.pc` (e.g. Samsung DeX mode) or have `FEATURE_ACTIVITIES_ON_SECONDARY_DISPLAYS` enabled.
+
 ## Contributing
 1. Fork the repo.
 2. Create a new branch: git checkout -b your - branch - name

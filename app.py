@@ -9,6 +9,7 @@ client_sid = None
 message_queue = queue.Queue()
 audio_message_queue = queue.Queue()
 video_bit_rate = "1024000"
+new_display = None
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
@@ -63,7 +64,7 @@ def handle_connect():
     else:
         client_sid = request.sid
         scpy_ctx = Scrcpy()
-        scpy_ctx.scrcpy_start(send_video_data, send_audio_data, video_bit_rate)
+        scpy_ctx.scrcpy_start(send_video_data, send_audio_data, video_bit_rate, new_display)
         socketio.start_background_task(video_send_task)
         socketio.start_background_task(audio_send_task)
         print(f'connectioned, client  {scpy_ctx}')
@@ -85,6 +86,9 @@ def handle_control_data(data):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Web server for scrcpy')
     parser.add_argument('--video_bit_rate', default="1024000", help='scrcpy video bit rate')
+    parser.add_argument('--new-display', nargs='?', const='', default=None, metavar='WxH[/DPI]',
+                        help='create a virtual display (e.g. 1920x1080/284, 1920x1080, /284, or empty for auto)')
     args = parser.parse_args()
     video_bit_rate = args.video_bit_rate
+    new_display = args.new_display
     socketio.run(app, host='0.0.0.0', port=5000)
